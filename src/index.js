@@ -56,6 +56,7 @@ export default function watch ( rollup, options ) {
 			let rebuildScheduled = false;
 			let building = false;
 			let watching = false;
+			let halted = false;
 
 			let timeout;
 			let cache;
@@ -73,7 +74,7 @@ export default function watch ( rollup, options ) {
 			}
 
 			function build () {
-				if ( building ) return;
+				if ( building || halted ) return;
 
 				let start = Date.now();
 				let initial = !watching;
@@ -95,7 +96,10 @@ export default function watch ( rollup, options ) {
 							if ( /\0/.test( id ) ) return;
 
 							if ( !filewatchers.has( id ) ) {
-								const watcher = new FileWatcher( id, module.originalCode, triggerRebuild, () => {
+								const watcher = new FileWatcher( id, module.originalCode, () => {
+									halted = false;
+									triggerRebuild();
+								}, () => {
 									filewatchers.delete( id );
 								});
 
@@ -123,6 +127,9 @@ export default function watch ( rollup, options ) {
 							code: 'ERROR',
 							error
 						});
+
+						halted = true;
+						setTimeout( build, 1000 ); // keeps process alive -- FIXME: though only for a single retry
 					})
 					.then( () => {
 						building = false;
